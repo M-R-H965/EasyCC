@@ -1,7 +1,35 @@
+# Dependencies
 node_modules/
+
+# Build output
 dist/
 dist-electron/
+out/
+
+# IDE
+.idea/
+.vscode/
+*.swp
+*.swo
+
+# OS
+.DS_Store
+Thumbs.db
+
+# Logs
 *.log
+npm-debug.log*
+
+# Environment
 .env
 .env.*
 !.env.example
+
+# Cache
+.npm-cache/
+.npm/
+.eslintcache
+*.tsbuildinfo
+
+# User data (runtime only, not for repo)
+userData/

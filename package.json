@@ -1,0 +1,29 @@
+{
+  "name": "easycc",
+  "version": "0.1.0",
+  "private": true,
+  "description": "AI workflow desktop framework powered by Claude Code CLI",
+  "workspaces": [
+    "packages/*"
+  ],
+  "scripts": {
+    "dev": "npm run build:core && npm run dev:renderer & npm run dev:main",
+    "dev:main": "npm run build:main -- --watch",
+    "dev:renderer": "npm run dev --workspace=@easycc/renderer",
+    "build": "npm run build:core && npm run build:main && npm run build:preload && npm run build:renderer",
+    "build:core": "npm run build --workspace=@easycc/core",
+    "build:main": "npm run build --workspace=@easycc/main",
+    "build:preload": "npm run build --workspace=@easycc/preload",
+    "build:renderer": "npm run build --workspace=@easycc/renderer",
+    "test": "vitest run",
+    "test:watch": "vitest",
+    "lint": "echo 'lint not configured yet'",
+    "start": "electron packages/main/dist/index.js",
+    "pack": "electron-builder --dir",
+    "dist": "electron-builder"
+  },
+  "devDependencies": {
+    "typescript": "^5.8.0",
+    "vitest": "^3.1.0"
+  }
+}

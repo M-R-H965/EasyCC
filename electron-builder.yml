@@ -1,0 +1,30 @@
+appId: com.easycc.app
+productName: EasyCC
+directories:
+  buildResources: build
+  output: dist-electron
+files:
+  - packages/main/dist/**/*
+  - packages/preload/dist/**/*
+  - packages/renderer/dist/**/*
+  - packages/core/dist/**/*
+  - shared/**/*
+  - flows/**/*
+  - "!node_modules"
+extraResources:
+  - from: flows
+    to: flows
+mac:
+  target:
+    - dmg
+    - zip
+  category: public.app-category.developer-tools
+win:
+  target:
+    - nsis
+    - portable
+linux:
+  target:
+    - AppImage
+    - deb
+  category: Development

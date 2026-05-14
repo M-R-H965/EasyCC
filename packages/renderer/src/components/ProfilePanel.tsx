@@ -1,16 +1,54 @@
 import React, { useState } from 'react'
 import { useProfile } from '../hooks/useProfile'
 
+type TestState = 'idle' | 'testing' | 'ok' | 'fail'
+
 export function ProfilePanel() {
-  const { profiles, currentProfile, setCurrentProfile, createProfile, updateProfile, deleteProfile, setDefault, testConnection } = useProfile()
+  const { profiles, currentProfile, setCurrentProfile, createProfile, deleteProfile, setDefault, testConnection } = useProfile()
   const [showCreate, setShowCreate] = useState(false)
   const [form, setForm] = useState({ name: '', apiUrl: 'https://api.anthropic.com', apiKey: '', model: 'claude-sonnet-4-6' })
+  const [testStates, setTestStates] = useState<Record<string, TestState>>({})
 
   const handleCreate = async () => {
     if (!form.name || !form.apiKey) return
     await createProfile(form)
     setForm({ name: '', apiUrl: 'https://api.anthropic.com', apiKey: '', model: 'claude-sonnet-4-6' })
     setShowCreate(false)
+  }
+
+  const handleTest = async (id: string) => {
+    setTestStates((s) => ({ ...s, [id]: 'testing' }))
+    try {
+      const ok = await testConnection(id)
+      setTestStates((s) => ({ ...s, [id]: ok ? 'ok' : 'fail' }))
+    } catch {
+      setTestStates((s) => ({ ...s, [id]: 'fail' }))
+    }
+    setTimeout(() => {
+      setTestStates((s) => {
+        const { [id]: _, ...rest } = s
+        return rest
+      })
+    }, 4000)
+  }
+
+  const renderTestButton = (id: string) => {
+    const state = testStates[id] ?? 'idle'
+    const label = state === 'testing' ? 'Testing…' : state === 'ok' ? '✓ OK' : state === 'fail' ? '✗ Failed' : 'Test'
+    const color =
+      state === 'ok' ? 'text-green-600' :
+      state === 'fail' ? 'text-red-600' :
+      state === 'testing' ? 'text-gray-400' :
+      'text-blue-500 hover:text-blue-700'
+    return (
+      <button
+        onClick={(e) => { e.stopPropagation(); handleTest(id) }}
+        disabled={state === 'testing'}
+        className={`text-xs ${color}`}
+      >
+        {label}
+      </button>
+    )
   }
 
   return (
@@ -70,7 +108,7 @@ export function ProfilePanel() {
           >
             <div className="flex items-center justify-between">
               <span className="font-medium">{profile.name}</span>
-              <div className="flex gap-1">
+              <div className="flex gap-2 items-center">
                 {profile.isDefault && (
                   <span className="text-xs bg-yellow-100 text-yellow-700 px-2 py-0.5 rounded">Default</span>
                 )}
@@ -80,12 +118,7 @@ export function ProfilePanel() {
                 >
                   Set Default
                 </button>
-                <button
-                  onClick={(e) => { e.stopPropagation(); testConnection(profile.id) }}
-                  className="text-xs text-blue-500 hover:text-blue-700"
-                >
-                  Test
-                </button>
+                {renderTestButton(profile.id)}
                 <button
                   onClick={(e) => { e.stopPropagation(); deleteProfile(profile.id) }}
                   className="text-xs text-red-500 hover:text-red-700"

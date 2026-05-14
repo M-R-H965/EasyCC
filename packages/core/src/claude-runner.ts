@@ -10,6 +10,8 @@ interface Session {
   sessionId: string
   initialized: boolean
   initTimer: ReturnType<typeof setTimeout> | null
+  resolveInit?: (id: string) => void
+  rejectInit?: (err: Error) => void
 }
 
 const CLAUDE_CMD = process.platform === 'win32' ? 'claude.cmd' : 'claude'
@@ -105,28 +107,18 @@ export class ClaudeRunner extends EventEmitter {
     // Wait for init event with timeout
     return new Promise((resolve, reject) => {
       const timeout = setTimeout(() => {
-        if (!session.initialized && session.sessionId) {
+        if (session.sessionId) {
           this.logger.warn('Init timeout, continuing anyway', { sessionId: session.sessionId })
-          session.initialized = true
           resolve(session.sessionId)
-        } else if (!session.sessionId) {
+        } else {
           reject(new Error('CLI failed to initialize'))
         }
       }, 30_000)
 
       session.initTimer = timeout
+      session.resolveInit = resolve
+      session.rejectInit = reject
 
-      const checkInit = () => {
-        if (session.sessionId && session.initialized) {
-          clearTimeout(timeout)
-          session.initTimer = null
-          resolve(session.sessionId)
-        }
-      }
-
-      this.on(`_init_${Date.now()}`, checkInit)
-
-      // Also handle early process exit
       proc.on('exit', (code) => {
         if (!session.sessionId) {
           clearTimeout(timeout)
@@ -193,6 +185,11 @@ export class ClaudeRunner extends EventEmitter {
       session.sessionId = event.session_id as string
       session.initialized = true
       this.sessions.set(session.sessionId, session)
+      if (session.initTimer) {
+        clearTimeout(session.initTimer)
+        session.initTimer = null
+      }
+      session.resolveInit?.(session.sessionId)
       this.bus.emit('session:init', { sessionId: session.sessionId })
       this.logger.info('CLI initialized', { sessionId: session.sessionId })
       return

@@ -8,9 +8,10 @@
     "packages/*"
   ],
   "scripts": {
-    "dev": "concurrently -n renderer,main \"npm run dev:renderer\" \"npm run dev:main\"",
+    "dev": "concurrently -n renderer,main \"npm run dev:renderer\" \"npm run dev:electron\"",
     "dev:main": "npm run build:core && npm run build:main -- --watch",
     "dev:renderer": "npm run dev --workspace=@easycc/renderer",
+    "dev:electron": "npm run build:shared && npm run build:core && npm run build:preload && npm run build:main && cross-env EASYCC_DEV=1 electron packages/main/dist/index.js",
     "build": "npm run build:shared && npm run build:core && npm run build:main && npm run build:preload && npm run build:renderer",
     "build:shared": "npm run build --workspace=@easycc/shared",
     "build:core": "npm run build --workspace=@easycc/core",
@@ -25,6 +26,7 @@
   },
   "devDependencies": {
     "concurrently": "^9.0.0",
+    "cross-env": "^7.0.3",
     "electron": "^35.0.0",
     "typescript": "^5.8.0",
     "vitest": "^3.1.0"

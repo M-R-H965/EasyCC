@@ -1,7 +1,8 @@
 import { ipcMain, BrowserWindow, app } from 'electron'
 import { join } from 'path'
-import { EventBus, ClaudeRunner, ClaudeInstaller, ProfileManager, FlowManager, MainMemory } from '@easycc/core'
+import { EventBus, ClaudeRunner, ClaudeInstaller, ProfileManager, FlowManager, MainMemory, ConversationStore } from '@easycc/core'
 import type { CoreEventMap, RunnerOptions } from '@easycc/shared'
+import type { PersistedConversation } from '@easycc/core'
 
 let runner: ClaudeRunner
 let bus: EventBus<CoreEventMap>
@@ -29,7 +30,11 @@ const decrypt = (encrypted: string): string => {
 export function initIpc(): void {
   const dataDir = app.getPath('userData')
   const logDir = join(dataDir, 'logs')
-  const flowsDir = join(app.isPackaged ? process.resourcesPath : app.getAppPath(), 'flows')
+  // In dev: __dirname is .../packages/main/dist → up 3 to repo root, then /flows
+  // In prod: bundled flows live under process.resourcesPath/flows (see electron-builder.yml)
+  const flowsDir = app.isPackaged
+    ? join(process.resourcesPath, 'flows')
+    : join(__dirname, '..', '..', '..', 'flows')
 
   bus = new EventBus<CoreEventMap>()
   runner = new ClaudeRunner(bus, logDir)
@@ -37,6 +42,7 @@ export function initIpc(): void {
   const profileManager = new ProfileManager(dataDir, logDir, encrypt, decrypt)
   const flowManager = new FlowManager(flowsDir, dataDir, logDir)
   const mainMemory = new MainMemory(join(dataDir, 'main-session'), logDir)
+  const convStore = new ConversationStore(dataDir, logDir)
 
   function forwardEvent<K extends keyof CoreEventMap>(event: K) {
     bus.on(event, (payload) => {
@@ -84,6 +90,13 @@ export function initIpc(): void {
   ipcMain.handle('memory:compress', () => mainMemory.compress())
 
   ipcMain.handle('app:getVersion', () => app.getVersion())
+
+  ipcMain.handle('convstore:saveAll', (_, conversations: PersistedConversation[]) =>
+    convStore.saveAll(conversations),
+  )
+  ipcMain.handle('convstore:loadAll', (_, flowDirs: string[]) =>
+    convStore.loadAll(flowDirs),
+  )
 }
 
 export { runner, bus }

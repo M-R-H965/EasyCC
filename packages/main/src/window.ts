@@ -3,7 +3,7 @@ import { join } from 'path'
 
 let mainWindow: BrowserWindow | null = null
 
-const isDev = !app.isPackaged
+const isDev = !app.isPackaged && process.env.EASYCC_DEV === '1'
 
 export function createMainWindow(): BrowserWindow {
   mainWindow = new BrowserWindow({
@@ -13,7 +13,7 @@ export function createMainWindow(): BrowserWindow {
     minHeight: 600,
     title: 'EasyCC',
     webPreferences: {
-      preload: join(__dirname, '..', '..', '..', 'preload', 'dist', 'index.js'),
+      preload: join(__dirname, '..', '..', 'preload', 'dist', 'index.js'),
       contextIsolation: true,
       nodeIntegration: false,
       sandbox: false,
@@ -24,7 +24,7 @@ export function createMainWindow(): BrowserWindow {
     mainWindow.loadURL('http://localhost:5173')
     mainWindow.webContents.openDevTools()
   } else {
-    mainWindow.loadFile(join(__dirname, '..', '..', '..', 'renderer', 'dist', 'index.html'))
+    mainWindow.loadFile(join(__dirname, '..', '..', 'renderer', 'dist', 'index.html'))
   }
 
   mainWindow.on('closed', () => { mainWindow = null })

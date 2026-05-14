@@ -43,6 +43,11 @@ const electronAPI = {
     getVersion: () => ipcRenderer.invoke('app:getVersion'),
   },
 
+  convstore: {
+    saveAll: (conversations: unknown[]) => ipcRenderer.invoke('convstore:saveAll', conversations),
+    loadAll: (flowDirs: string[]) => ipcRenderer.invoke('convstore:loadAll', flowDirs),
+  },
+
   events: {
     onChatStream: (callback: (payload: unknown) => void) => {
       ipcRenderer.on('core:chat:stream', (_, payload) => callback(payload))

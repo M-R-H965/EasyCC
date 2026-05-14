@@ -78,6 +78,8 @@ export interface RunnerOptions {
   bare?: boolean
   sessionId?: string
   env?: Record<string, string>
+  allowedTools?: string[]   // maps to --allowed-tools
+  settingsFile?: string     // maps to --settings
 }
 
 export interface SessionInfo {

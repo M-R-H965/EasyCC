@@ -4,6 +4,9 @@ import { createLogger } from './logger'
 
 const execFileAsync = promisify(execFile)
 
+const CLAUDE_CMD = process.platform === 'win32' ? 'claude.cmd' : 'claude'
+const SHELL_OPT = process.platform === 'win32' ? { shell: true } : {}
+
 export class ClaudeInstaller {
   private logger
 
@@ -13,7 +16,7 @@ export class ClaudeInstaller {
 
   async getVersion(): Promise<string | null> {
     try {
-      const { stdout } = await execFileAsync('claude', ['--version'])
+      const { stdout } = await execFileAsync(CLAUDE_CMD, ['--version'], SHELL_OPT)
       const match = stdout.trim().match(/(\d+\.\d+\.\d+)/)
       return match ? match[1] : stdout.trim()
     } catch {

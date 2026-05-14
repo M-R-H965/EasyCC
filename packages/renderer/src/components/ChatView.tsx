@@ -15,7 +15,7 @@ export function ChatView() {
     <div className="flex-1 overflow-y-auto px-4 py-2">
       {!activeConv && (
         <div className="flex items-center justify-center h-full text-gray-400 text-sm">
-          Select a flow and press + to start a conversation
+          Select a profile to start chatting
         </div>
       )}
       {activeConv && messages.length === 0 && (

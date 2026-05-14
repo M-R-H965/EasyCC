@@ -12,6 +12,8 @@ interface Session {
   initTimer: ReturnType<typeof setTimeout> | null
 }
 
+const CLAUDE_CMD = process.platform === 'win32' ? 'claude.cmd' : 'claude'
+
 export class ClaudeRunner extends EventEmitter {
   private sessions = new Map<string, Session>()
   private tombstones = new Map<string, number>()
@@ -45,16 +47,23 @@ export class ClaudeRunner extends EventEmitter {
     if (options.sessionId) {
       args.push('--resume', options.sessionId)
     }
+    if (options.allowedTools && options.allowedTools.length > 0) {
+      args.push('--allowed-tools', options.allowedTools.join(','))
+    }
+    if (options.settingsFile) {
+      args.push('--settings', options.settingsFile)
+    }
 
     const env: Record<string, string> = { ...process.env as Record<string, string> }
     if (options.env) {
       Object.assign(env, options.env)
     }
 
-    const proc = spawn('claude', args, {
+    const proc = spawn(CLAUDE_CMD, args, {
       cwd: options.cwd ?? process.cwd(),
       env,
       stdio: ['pipe', 'pipe', 'pipe'],
+      ...(process.platform === 'win32' ? { shell: true } : {}),
     })
 
     const session: Session = {

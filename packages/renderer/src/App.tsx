@@ -1,6 +1,7 @@
 import React, { useEffect, useRef } from 'react'
 import { useAppStore } from './stores/appStore'
 import { useChatStore } from './stores/chatStore'
+import { useProfileStore } from './stores/profileStore'
 import { Sidebar } from './components/Sidebar'
 import { ChatView } from './components/ChatView'
 import { InputBar } from './components/InputBar'
@@ -20,13 +21,28 @@ function ChatArea() {
   )
 }
 
+// Ensures at least one no-flow conversation exists when the Chat panel is open
+function ChatPanel() {
+  const profile = useProfileStore((s) => s.currentProfile)
+  const store = useChatStore()
+
+  useEffect(() => {
+    if (!profile) return
+    const hasGeneralConv = Object.values(store.conversations).some((c) => c.flowId === null)
+    if (!hasGeneralConv) {
+      store.createConversation({ flow: null, profile })
+    }
+  }, [profile])
+
+  return <ChatArea />
+}
+
 export default function App() {
   const activePanel = useAppStore((s) => s.activePanel)
   const store = useChatStore()
   const saveTimer = useRef<ReturnType<typeof setTimeout> | null>(null)
   const loaded = useRef(false)
 
-  // Load persisted conversations on first mount
   useEffect(() => {
     const api = window.electronAPI
     if (!api?.convstore) return
@@ -41,7 +57,6 @@ export default function App() {
     })
   }, [])
 
-  // Debounced save on every store change (skip until initial load is done)
   useEffect(() => {
     const unsub = useChatStore.subscribe((state) => {
       if (!loaded.current) return
@@ -53,6 +68,7 @@ export default function App() {
           flowId: c.flowId,
           flowName: c.flowName,
           flowDir: c.flowDir,
+          flowTools: c.flowTools,
           profileId: c.profileId,
           sessionId: c.sessionId,
           messages: c.messages,
@@ -64,7 +80,6 @@ export default function App() {
     return () => unsub()
   }, [])
 
-  // Wire stream events
   useEffect(() => {
     window.electronAPI?.events?.onChatStream((payload) => {
       store.appendToLastAssistantBySessionId(payload.sessionId, payload.content)
@@ -74,6 +89,17 @@ export default function App() {
     })
     window.electronAPI?.events?.onChatDone((payload) => {
       store.setStreamingBySessionId(payload.sessionId, false)
+      const conv = Object.values(useChatStore.getState().conversations)
+        .find((c) => c.sessionId === payload.sessionId)
+      if (conv && conv.messages.length >= 2) {
+        const msgs = conv.messages
+        const lastUser = [...msgs].reverse().find((m) => m.role === 'user')
+        const lastAssistant = [...msgs].reverse().find((m) => m.role === 'assistant')
+        if (lastUser && lastAssistant) {
+          const entry = `[${conv.title}] Q: ${lastUser.content.slice(0, 120)} → A: ${lastAssistant.content.slice(0, 200)}`
+          window.electronAPI.memory.append('Recent', entry)
+        }
+      }
     })
     window.electronAPI?.events?.onChatError((payload) => {
       store.setStreamingBySessionId((payload as any).sessionId, false)
@@ -96,7 +122,7 @@ export default function App() {
     <div className="flex h-screen bg-white">
       <Sidebar />
       <main className="flex-1 flex flex-col overflow-hidden">
-        {activePanel === 'chat' && <ChatArea />}
+        {activePanel === 'chat' && <ChatPanel />}
         {activePanel === 'profile' && <ProfilePanel />}
         {activePanel === 'cc' && <CCSettings />}
         {activePanel === 'memory' && <MemoryPanel />}
@@ -104,3 +130,4 @@ export default function App() {
     </div>
   )
 }
+

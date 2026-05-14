@@ -127,6 +127,10 @@ export function useChat() {
           options.cwd = conv.flowDir
           options.addDirs = [conv.flowDir]
           options.bare = true
+          if (conv.flowTools && conv.flowTools.length > 0) {
+            options.allowedTools = conv.flowTools
+          }
+          options.settingsFile = `${conv.flowDir}/settings.json`
         }
         sessionId = await window.electronAPI.conversation.create(options)
         store.setSessionId(targetId, sessionId)

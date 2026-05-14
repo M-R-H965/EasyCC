@@ -38,20 +38,30 @@ export class ConversationStore {
       groups.get(dir)!.push(conv)
     }
 
-    await Promise.all(
-      Array.from(groups.entries()).map(async ([dir, convs]) => {
+    await Promise.all([
+      // Per-flow files (full messages)
+      ...Array.from(groups.entries()).map(async ([dir, convs]) => {
         try {
           mkdirSync(dir, { recursive: true })
-          await writeFileAsync(
-            join(dir, 'conversations.json'),
-            JSON.stringify(convs, null, 2),
-            'utf-8',
-          )
+          await writeFileAsync(join(dir, 'conversations.json'), JSON.stringify(convs, null, 2), 'utf-8')
         } catch (err) {
           this.logger.error('Failed to save conversations', { dir, error: String(err) })
         }
       }),
-    )
+      // Global index (metadata only — no messages — for cross-flow overview)
+      writeFileAsync(
+        join(this.fallbackDir, 'all-conversations.json'),
+        JSON.stringify(
+          conversations.map(({ id, title, flowId, flowName, profileId, sessionId, createdAt, messages }) => ({
+            id, title, flowId, flowName, profileId, sessionId, createdAt,
+            messageCount: messages.length,
+            lastMessageAt: messages[messages.length - 1]?.timestamp ?? createdAt,
+          })),
+          null, 2,
+        ),
+        'utf-8',
+      ).catch((err) => this.logger.error('Failed to save global index', { error: String(err) })),
+    ])
   }
 
   async loadAll(flowDirs: string[]): Promise<PersistedConversation[]> {

@@ -143,11 +143,11 @@ export class ProfileManager {
           : {}),
       }
 
-      await execFileAsync('claude', [
+      await execFileAsync(process.platform === 'win32' ? 'claude.cmd' : 'claude', [
         '--output-format', 'json',
         '--model', profile.model,
         '-p', 'Say "ok"',
-      ], { env, timeout: 15_000 })
+      ], { env, timeout: 15_000, ...(process.platform === 'win32' ? { shell: true } : {}) })
 
       return true
     } catch (err) {

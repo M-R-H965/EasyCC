@@ -7,8 +7,9 @@ export interface Conversation {
   flowId: string | null
   flowName: string | null
   flowDir: string | null
+  flowTools: string[]
   profileId: string
-  profileSnapshot: Profile // captured at creation; subsequent profile edits don't affect existing conv
+  profileSnapshot: Profile
   sessionId: string | null
   messages: ChatMessage[]
   isStreaming: boolean
@@ -55,6 +56,7 @@ export const useChatStore = create<ChatState>((set, get) => ({
       flowId: flow?.id ?? null,
       flowName: flow?.name ?? null,
       flowDir: flow?.dir ?? null,
+      flowTools: flow?.tools ?? [],
       profileId: profile.id,
       profileSnapshot: profile,
       sessionId: null,
@@ -163,6 +165,7 @@ export const useChatStore = create<ChatState>((set, get) => ({
     for (const c of convs) {
       conversations[c.id] = {
         ...c,
+        flowTools: (c as any).flowTools ?? [],
         isStreaming: false,
         // profileSnapshot is not persisted — reconstruct a minimal stub so the
         // type is satisfied; the real profile is only needed when sending a new

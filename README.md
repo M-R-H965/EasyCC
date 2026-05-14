@@ -5,51 +5,62 @@ AI workflow desktop framework powered by Claude Code CLI. Fork this repo and bui
 ## Prerequisites
 
 - Node.js 18+
-- [Claude Code CLI](https://www.npmjs.com/package/@anthropic-ai/claude-code): `npm i -g @anthropic-ai/claude-code`
+- Claude Code CLI: `npm i -g @anthropic-ai/claude-code`
 - An Anthropic API key
 
 ## Quick Start
 
 ```bash
-# Fork or clone this repo
 git clone https://github.com/YOUR_USER/easycc.git
 cd easycc
-
-# Install dependencies
 npm install
-
-# Build all packages
 npm run build
-
-# Launch the app
 npm start
 ```
 
 ## Development Mode
 
+`npm run dev` starts the Vite renderer dev server and launches Electron in one command:
+
 ```bash
-# Terminal 1 — start renderer dev server + watch-compile main/core
 npm run dev
-
-# Terminal 2 — launch Electron (after the renderer dev server is ready)
-npm start
 ```
 
-## Architecture
+## UI Overview
 
-```
-Renderer (React UI)
-  ↓ electronAPI (contextBridge)
-Preload (IPC whitelist)
-  ↓ ipcRenderer.invoke
-Main (Electron lifecycle + IPC handlers)
-  ↓ calls core modules
-Core (pure Node.js, no Electron dependency)
-  ↓ spawn
-Claude Code CLI (stream-json I/O)
-```
+The sidebar has five panels:
 
-Key principle: Core is a pure Node.js package with zero Electron dependency, making it testable and reusable independently.
+| Panel | Purpose |
+|---|---|
+| **Chat** | General-purpose conversation — no flow required |
+| **Flows** | Three-column layout: flow list + conversation tabs + chat |
+| **Profiles** | Manage API keys, models, and API URLs |
+| **Claude Code** | Check CLI install status, install or update |
+| **Memory** | View `warmup.md` — cross-session context fed to the main chat |
+
+### Profiles
+
+Create a profile before chatting: enter a name, API URL (`https://api.anthropic.com`), API key, and model (e.g. `claude-sonnet-4-5`). The first profile is set as default automatically.
+
+### Conversations
+
+- **Chat panel**: opens a general conversation automatically when a profile is selected.
+- **Flows panel**: click **Load** on a flow card to open a new conversation scoped to that flow's directory. Each conversation gets its own tab. Multiple conversations can be open simultaneously.
+- Tabs show a streaming indicator (●) while Claude is responding. Click × to close a tab.
+
+### Conversation Persistence
+
+Each conversation's message history and Claude session ID are saved automatically:
+
+- Flow conversations → `flows/<FlowName>/conversations.json`
+- General conversations → `userData/conversations.json`
+- Global index (metadata only) → `userData/all-conversations.json`
+
+On next launch, all conversations are restored. The saved session ID allows Claude to resume context via `--resume`.
+
+### Cross-session Memory
+
+After each completed response, the last Q&A pair is appended to `userData/main-session/warmup.md` under `## Recent`. The Chat panel's Claude session reads this file on startup, giving it awareness of what happened in all flow conversations.
 
 ## How to Create a Custom Flow
 
@@ -76,53 +87,77 @@ Key principle: Core is a pure Node.js package with zero Electron dependency, mak
    Describe how the AI should work in this flow.
    ```
 
-3. The flow appears automatically in the UI sidebar.
+   The `tools` field maps directly to Claude Code CLI's `--allowed-tools` flag. Only the listed tools will be available in that flow's conversations.
+
+3. Optionally add `flows/MyFlow/settings.json` for per-flow Claude Code configuration (MCP servers, permission overrides, hooks, etc.):
+   ```json
+   {
+     "permissions": {
+       "allow": ["Bash(git *)"],
+       "deny": ["Bash(rm *)"]
+     }
+   }
+   ```
+   This is passed as `--settings` to the CLI. The `--bare` flag is also set for all flow conversations, so user-global Claude config does not bleed in.
+
+4. The flow appears automatically in the Flows panel sidebar.
 
 ## Project Structure
 
 ```
 packages/
   shared/      — Shared TypeScript types (@easycc/shared)
-  core/        — Pure Node.js business logic
-  main/        — Electron main process
+  core/        — Pure Node.js business logic (no Electron dependency)
+  main/        — Electron main process + IPC handlers
   preload/     — Context bridge (IPC whitelist)
-  renderer/    — React UI (Vite + Tailwind)
-flows/         — Flow plugins (directory-based)
+  renderer/    — React UI (Vite + Tailwind + Zustand)
+flows/
+  000-Demo/    — Example flow with starter settings.json
+```
+
+## Architecture
+
+```
+Renderer (React UI)
+  ↓ window.electronAPI (contextBridge)
+Preload (IPC whitelist)
+  ↓ ipcRenderer.invoke
+Main (Electron lifecycle + IPC handlers)
+  ↓ core modules
+Core (pure Node.js)
+  ↓ spawn (shell: true on Windows)
+Claude Code CLI (--input-format stream-json / --output-format stream-json)
 ```
 
 ## Configuration
 
-- **Profiles**: Managed via UI, stored in `userData/profiles.json` with encrypted API keys
-- **Flows**: Auto-discovered from `flows/` directory
-- **Memory**: `userData/main-session/warmup.md` for cross-session context
+| What | Where |
+|---|---|
+| Profiles (API keys, models) | `userData/profiles.json` — keys encrypted via `safeStorage` |
+| Flow state (enabled/disabled) | `userData/flow-state.json` |
+| Conversation history | `flows/<Name>/conversations.json` and `userData/conversations.json` |
+| Cross-session memory | `userData/main-session/warmup.md` |
 
 ## Build & Package
 
 ```bash
-# Build all packages
-npm run build
-
-# Run tests
-npm test
-
-# Package for current platform
-npm run pack
-
-# Create distributable installer
-npm run dist
+npm run build       # build all packages
+npm test            # run Vitest
+npm run pack        # package for current platform (no installer)
+npm run dist        # create distributable installer
 ```
 
 ## Tech Stack
 
 | Layer | Technology |
-|-------|-----------|
+|---|---|
 | UI | React 18 + Tailwind CSS |
 | State | Zustand |
-| Desktop | Electron |
+| Desktop | Electron 35 |
 | Build | Vite (renderer) + tsc (main/core/preload) |
 | Package | electron-builder |
 | Test | Vitest |
-| AI Engine | Claude Code CLI |
+| AI Engine | Claude Code CLI (`@anthropic-ai/claude-code`) |
 
 ## License
 

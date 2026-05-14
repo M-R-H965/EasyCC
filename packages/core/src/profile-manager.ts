@@ -3,7 +3,7 @@ import { promisify } from 'util'
 import { join } from 'path'
 import { randomUUID } from 'crypto'
 import { createLogger } from './logger'
-import type { Profile } from '../../shared/types'
+import type { Profile } from '@easycc/shared'
 
 const readFileAsync = promisify(readFile)
 const writeFileAsync = promisify(writeFile)
@@ -63,11 +63,8 @@ export class ProfileManager {
       profile.isDefault = true
     }
 
-    stored.push({
-      ...profile,
-      apiKey: undefined as unknown as string,
-      encryptedApiKey: this.encryptFn(profile.apiKey),
-    })
+    const { apiKey, ...rest } = profile
+    stored.push({ ...rest, encryptedApiKey: this.encryptFn(apiKey) })
 
     await this.writeStore(stored)
     this.logger.info('Profile created', { id: profile.id, name: profile.name })

@@ -9,6 +9,7 @@
     "test": "vitest run --config ../../vitest.config.ts"
   },
   "dependencies": {
+    "@easycc/shared": "*",
     "gray-matter": "^4.0.3"
   },
   "devDependencies": {

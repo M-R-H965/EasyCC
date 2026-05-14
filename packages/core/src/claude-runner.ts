@@ -1,7 +1,7 @@
 import { spawn, ChildProcess } from 'child_process'
 import { createInterface } from 'readline'
 import { EventEmitter } from 'events'
-import type { CoreEventMap, RunnerOptions } from '../../shared/types'
+import type { CoreEventMap, RunnerOptions } from '@easycc/shared'
 import { EventBus } from './event-bus'
 import { createLogger } from './logger'
 
@@ -208,7 +208,7 @@ export class ClaudeRunner extends EventEmitter {
     } else if (type === 'result') {
       this.bus.emit('chat:done', {
         sessionId,
-        result: event as unknown as import('../../shared/types').CLIDoneEvent,
+        result: event as unknown as import('@easycc/shared').CLIDoneEvent,
       })
     }
   }

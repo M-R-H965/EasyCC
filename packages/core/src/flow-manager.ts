@@ -3,7 +3,7 @@ import { promisify } from 'util'
 import { join } from 'path'
 import matter from 'gray-matter'
 import { createLogger } from './logger'
-import type { FlowMeta } from '../../shared/types'
+import type { FlowMeta } from '@easycc/shared'
 
 const writeFileAsync = promisify(writeFile)
 

@@ -7,7 +7,8 @@
     "build": "tsc"
   },
   "dependencies": {
-    "@easycc/core": "*"
+    "@easycc/core": "*",
+    "@easycc/shared": "*"
   },
   "devDependencies": {
     "electron": "^35.0.0",

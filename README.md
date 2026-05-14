@@ -2,6 +2,12 @@
 
 AI workflow desktop framework powered by Claude Code CLI. Fork this repo and build your own AI-powered desktop app.
 
+## Prerequisites
+
+- Node.js 18+
+- [Claude Code CLI](https://www.npmjs.com/package/@anthropic-ai/claude-code): `npm i -g @anthropic-ai/claude-code`
+- An Anthropic API key
+
 ## Quick Start
 
 ```bash
@@ -12,8 +18,21 @@ cd easycc
 # Install dependencies
 npm install
 
-# Start dev mode
+# Build all packages
+npm run build
+
+# Launch the app
+npm start
+```
+
+## Development Mode
+
+```bash
+# Terminal 1 — start renderer dev server + watch-compile main/core
 npm run dev
+
+# Terminal 2 — launch Electron (after the renderer dev server is ready)
+npm start
 ```
 
 ## Architecture
@@ -63,11 +82,11 @@ Key principle: Core is a pure Node.js package with zero Electron dependency, mak
 
 ```
 packages/
+  shared/      — Shared TypeScript types (@easycc/shared)
   core/        — Pure Node.js business logic
   main/        — Electron main process
   preload/     — Context bridge (IPC whitelist)
   renderer/    — React UI (Vite + Tailwind)
-shared/        — Cross-package TypeScript types
 flows/         — Flow plugins (directory-based)
 ```
 
@@ -82,6 +101,9 @@ flows/         — Flow plugins (directory-based)
 ```bash
 # Build all packages
 npm run build
+
+# Run tests
+npm test
 
 # Package for current platform
 npm run pack

@@ -21,10 +21,16 @@ const decrypt = (encrypted: string): string => {
   try {
     const { safeStorage } = require('electron')
     if (safeStorage.isEncryptionAvailable()) {
-      return safeStorage.decryptString(Buffer.from(encrypted, 'base64'))
+      const result = safeStorage.decryptString(Buffer.from(encrypted, 'base64'))
+      console.log('[decrypt] safeStorage result length:', result?.length, 'first5:', result?.slice(0,5))
+      return result
     }
-  } catch {}
-  return Buffer.from(encrypted, 'base64').toString()
+  } catch (e) {
+    console.log('[decrypt] safeStorage failed:', e)
+  }
+  const fallback = Buffer.from(encrypted, 'base64').toString()
+  console.log('[decrypt] base64 fallback length:', fallback?.length)
+  return fallback
 }
 
 export function initIpc(): void {

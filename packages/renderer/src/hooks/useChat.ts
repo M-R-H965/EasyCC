@@ -112,7 +112,13 @@ export function useChat() {
     try {
       let sessionId = conv.sessionId
       if (!sessionId) {
-        const profile = conv.profileSnapshot
+        const profile = (conv.profileSnapshot.apiKey && conv.profileSnapshot.model)
+          ? conv.profileSnapshot
+          : currentProfile
+        if (!profile?.apiKey || !profile?.model) {
+          store.setStreaming(targetId, false)
+          return
+        }
         const options: Record<string, unknown> = {
           model: profile.model,
           env: {

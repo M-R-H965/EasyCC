@@ -1,6 +1,7 @@
 import { spawn, ChildProcess } from 'child_process'
 import { createInterface } from 'readline'
 import { EventEmitter } from 'events'
+import { existsSync } from 'fs'
 import type { CoreEventMap, RunnerOptions } from '@easycc/shared'
 import { EventBus } from './event-bus'
 import { createLogger } from './logger'
@@ -49,7 +50,7 @@ export class ClaudeRunner extends EventEmitter {
     if (options.allowedTools && options.allowedTools.length > 0) {
       args.push('--allowed-tools', options.allowedTools.join(','))
     }
-    if (options.settingsFile) {
+    if (options.settingsFile && existsSync(options.settingsFile)) {
       args.push('--settings', options.settingsFile)
     }
 
@@ -63,6 +64,14 @@ export class ClaudeRunner extends EventEmitter {
       env,
       stdio: ['pipe', 'pipe', 'pipe'],
       ...(process.platform === 'win32' ? { shell: true } : {}),
+    })
+
+    this.logger.info('CLI spawned', {
+      cmd: CLAUDE_CMD,
+      args,
+      cwd: options.cwd ?? process.cwd(),
+      envKeys: Object.keys(options.env ?? {}),
+      hasApiKey: !!(env.ANTHROPIC_API_KEY),
     })
 
     const session: Session = {
@@ -85,7 +94,12 @@ export class ClaudeRunner extends EventEmitter {
     })
 
     proc.stderr!.on('data', (data: Buffer) => {
-      this.logger.debug('CLI stderr', { data: data.toString().slice(0, 500) })
+      this.logger.warn('CLI stderr', { data: data.toString().slice(0, 500) })
+    })
+
+    // Log all stdout lines before they're parsed, to diagnose startup failures
+    proc.stdout!.on('data', (data: Buffer) => {
+      this.logger.debug('CLI stdout raw', { data: data.toString().slice(0, 500) })
     })
 
     proc.on('exit', (code) => {
@@ -98,6 +112,13 @@ export class ClaudeRunner extends EventEmitter {
         this.sessions.delete(session.sessionId)
         this.bus.emit('session:exit', { sessionId: session.sessionId, code })
         this.logger.info('CLI process exited', { sessionId: session.sessionId, code })
+      } else {
+        // Process exited before init — give readline one tick to drain, then reject
+        setImmediate(() => {
+          if (!session.sessionId) {
+            session.rejectInit?.(new Error(`CLI exited before init with code ${code}`))
+          }
+        })
       }
     })
 
@@ -115,13 +136,6 @@ export class ClaudeRunner extends EventEmitter {
       session.initTimer = timeout
       session.resolveInit = resolve
       session.rejectInit = reject
-
-      proc.on('exit', (code) => {
-        if (!session.sessionId) {
-          clearTimeout(timeout)
-          reject(new Error(`CLI exited before init with code ${code}`))
-        }
-      })
     })
   }
 

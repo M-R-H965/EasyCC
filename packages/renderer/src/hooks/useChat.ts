@@ -114,7 +114,7 @@ export function useChat() {
         store.setStreaming(targetId, false)
         return
       }
-      const buildOptions = async () => {
+      const buildOptions = async (includeHistory = false) => {
         const options: Record<string, unknown> = {
           model: profile.model,
           env: {
@@ -126,15 +126,37 @@ export function useChat() {
         }
         if (profile.systemPrompt) options.systemPrompt = profile.systemPrompt
         if (conv.flowSystemPrompt) options.systemPrompt = conv.flowSystemPrompt
+
+        // Build appended context: cross-session memory + conversation history (if restoring)
+        let appendedContext = ''
+
         if (!conv.flowDir) {
-          // Inject cross-session memory into general chat as appended context
+          // Inject cross-session memory into general chat
           try {
             const memory = await window.electronAPI.memory.read()
             if (memory && memory.trim() !== '# Main Memory\n\n## Recent\n\n## History\n\n## Topics') {
-              options.appendSystemPrompt = `\n\n# Cross-session memory (recent activity):\n${memory}`
+              appendedContext += `\n\n# Cross-session memory (recent activity):\n${memory}`
             }
           } catch {}
         }
+
+        if (includeHistory && conv.messages.length > 0) {
+          // Inject this conversation's message history when restoring after restart
+          appendedContext += `\n\n# This conversation's history (restored after restart):\n`
+          for (const msg of conv.messages) {
+            if (msg.role === 'user') {
+              appendedContext += `\nUser: ${msg.content}`
+            } else if (msg.role === 'assistant') {
+              appendedContext += `\nAssistant: ${msg.content}`
+            }
+          }
+          appendedContext += `\n\n# Continue the conversation from here:\n`
+        }
+
+        if (appendedContext) {
+          options.appendSystemPrompt = appendedContext
+        }
+
         if (conv.flowDir) {
           options.cwd = conv.flowDir
           options.addDirs = [conv.flowDir]
@@ -146,17 +168,18 @@ export function useChat() {
       }
 
       if (!sessionId) {
-        // New conversation — spawn fresh
-        const options = await buildOptions()
+        // New conversation — spawn fresh (no history to restore)
+        const options = await buildOptions(false)
         options.firstMessage = content
         sessionId = await window.electronAPI.conversation.create(options)
         store.setSessionId(targetId, sessionId)
       } else {
-        // Existing sessionId — try send; if runner doesn't know it (e.g. after restart), respawn with --resume
+        // Existing sessionId — try send; if runner doesn't know it (e.g. after restart), respawn with history
         try {
           await window.electronAPI.conversation.send(sessionId, content)
         } catch {
-          const options = await buildOptions()
+          // Session expired — respawn with conversation history so Claude remembers context
+          const options = await buildOptions(true)
           options.firstMessage = content
           const newSessionId = await window.electronAPI.conversation.create(options)
           store.setSessionId(targetId, newSessionId)

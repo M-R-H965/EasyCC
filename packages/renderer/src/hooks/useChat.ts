@@ -126,7 +126,6 @@ export function useChat() {
         if (conv.flowDir) {
           options.cwd = conv.flowDir
           options.addDirs = [conv.flowDir]
-          options.bare = true
           if (conv.flowTools && conv.flowTools.length > 0) {
             options.allowedTools = conv.flowTools
           }

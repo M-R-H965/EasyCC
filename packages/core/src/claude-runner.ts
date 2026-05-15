@@ -146,7 +146,7 @@ export class ClaudeRunner extends EventEmitter {
 
     const payload = JSON.stringify({
       type: 'user',
-      content: message,
+      message: { role: 'user', content: message },
     }) + '\n'
 
     session.process.stdin.write(payload)
@@ -199,18 +199,15 @@ export class ClaudeRunner extends EventEmitter {
     if (!sessionId) return
 
     if (type === 'assistant') {
-      if (subtype === 'text') {
-        this.bus.emit('chat:stream', { sessionId, content: event.content as string })
-      } else if (subtype === 'thinking') {
-        this.bus.emit('chat:thinking', { sessionId, content: event.content as string })
-      } else if (subtype === 'tool_use') {
-        this.bus.emit('chat:tool_use', {
-          sessionId,
-          tool: { name: event.tool_name as string, input: event.tool_input as Record<string, unknown> },
-        })
+      const msg = event.message as { content: Array<{ type: string; text?: string; thinking?: string }> } | undefined
+      if (!msg) return
+      for (const block of msg.content ?? []) {
+        if (block.type === 'text' && block.text) {
+          this.bus.emit('chat:stream', { sessionId, content: block.text })
+        } else if (block.type === 'thinking' && block.thinking) {
+          this.bus.emit('chat:thinking', { sessionId, content: block.thinking })
+        }
       }
-    } else if (type === 'stream_event') {
-      this.bus.emit('chat:stream', { sessionId, content: event.content as string })
     } else if (type === 'result') {
       this.bus.emit('chat:done', {
         sessionId,

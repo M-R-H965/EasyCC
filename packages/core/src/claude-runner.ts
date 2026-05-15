@@ -40,9 +40,6 @@ export class ClaudeRunner extends EventEmitter {
     if (options.systemPrompt) {
       args.push('--system-prompt', options.systemPrompt)
     }
-    if (options.bare) {
-      args.push('--bare')
-    }
     for (const dir of options.addDirs ?? []) {
       args.push('--add-dir', dir)
     }

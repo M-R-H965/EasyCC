@@ -75,11 +75,10 @@ export interface RunnerOptions {
   systemPrompt?: string
   cwd?: string
   addDirs?: string[]
-  bare?: boolean
   sessionId?: string
   env?: Record<string, string>
-  allowedTools?: string[]   // maps to --allowed-tools
-  settingsFile?: string     // maps to --settings
+  allowedTools?: string[]
+  settingsFile?: string
 }
 
 export interface SessionInfo {

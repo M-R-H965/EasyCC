@@ -73,6 +73,7 @@ export type CLIEvent = CLIInitEvent | CLIAssistantEvent | CLIStreamEvent | CLIDo
 export interface RunnerOptions {
   model: string
   systemPrompt?: string
+  appendSystemPrompt?: string
   cwd?: string
   addDirs?: string[]
   bare?: boolean

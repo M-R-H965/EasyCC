@@ -107,14 +107,14 @@ export function useChat() {
 
     try {
       let sessionId = conv.sessionId
-      if (!sessionId) {
-        const profile = (conv.profileSnapshot.apiKey && conv.profileSnapshot.model)
-          ? conv.profileSnapshot
-          : currentProfile
-        if (!profile?.apiKey || !profile?.model) {
-          store.setStreaming(targetId, false)
-          return
-        }
+      const profile = (conv.profileSnapshot.apiKey && conv.profileSnapshot.model)
+        ? conv.profileSnapshot
+        : currentProfile
+      if (!profile?.apiKey || !profile?.model) {
+        store.setStreaming(targetId, false)
+        return
+      }
+      const buildOptions = async () => {
         const options: Record<string, unknown> = {
           model: profile.model,
           env: {
@@ -126,20 +126,41 @@ export function useChat() {
         }
         if (profile.systemPrompt) options.systemPrompt = profile.systemPrompt
         if (conv.flowSystemPrompt) options.systemPrompt = conv.flowSystemPrompt
+        if (!conv.flowDir) {
+          // Inject cross-session memory into general chat as appended context
+          try {
+            const memory = await window.electronAPI.memory.read()
+            if (memory && memory.trim() !== '# Main Memory\n\n## Recent\n\n## History\n\n## Topics') {
+              options.appendSystemPrompt = `\n\n# Cross-session memory (recent activity):\n${memory}`
+            }
+          } catch {}
+        }
         if (conv.flowDir) {
           options.cwd = conv.flowDir
           options.addDirs = [conv.flowDir]
           options.bare = true
-          if (conv.flowTools && conv.flowTools.length > 0) {
-            options.allowedTools = conv.flowTools
-          }
+          if (conv.flowTools && conv.flowTools.length > 0) options.allowedTools = conv.flowTools
           options.settingsFile = `${conv.flowDir}/settings.json`
         }
+        return options
+      }
+
+      if (!sessionId) {
+        // New conversation — spawn fresh
+        const options = await buildOptions()
         options.firstMessage = content
         sessionId = await window.electronAPI.conversation.create(options)
         store.setSessionId(targetId, sessionId)
       } else {
-        await window.electronAPI.conversation.send(sessionId, content)
+        // Existing sessionId — try send; if runner doesn't know it (e.g. after restart), respawn with --resume
+        try {
+          await window.electronAPI.conversation.send(sessionId, content)
+        } catch {
+          const options = await buildOptions()
+          options.firstMessage = content
+          const newSessionId = await window.electronAPI.conversation.create(options)
+          store.setSessionId(targetId, newSessionId)
+        }
       }
     } catch {
       store.setStreaming(targetId, false)

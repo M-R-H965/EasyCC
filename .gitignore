@@ -33,3 +33,9 @@ npm-debug.log*
 
 # User data (runtime only, not for repo)
 userData/
+
+# Conversation history saved per flow (contains chat messages, no credentials —
+# but still user-private)
+flows/*/conversations.json
+flows/*/input/
+flows/*/output/

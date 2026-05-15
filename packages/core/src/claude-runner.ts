@@ -1,7 +1,9 @@
 import { spawn, ChildProcess } from 'child_process'
 import { createInterface } from 'readline'
 import { EventEmitter } from 'events'
-import { existsSync } from 'fs'
+import { existsSync, writeFileSync, mkdtempSync } from 'fs'
+import { tmpdir } from 'os'
+import { join } from 'path'
 import type { CoreEventMap, RunnerOptions } from '@easycc/shared'
 import { EventBus } from './event-bus'
 import { createLogger } from './logger'
@@ -41,7 +43,21 @@ export class ClaudeRunner extends EventEmitter {
       '--model', options.model,
     ]
 
-    if (options.systemPrompt) args.push('--system-prompt', options.systemPrompt)
+    // Long prompts containing newlines/backticks break shell argument parsing on Windows.
+    // Write them to temp files and use the *-file variants instead.
+    const writeTempPrompt = (content: string, name: string): string => {
+      const dir = mkdtempSync(join(tmpdir(), 'easycc-'))
+      const path = join(dir, name)
+      writeFileSync(path, content, 'utf-8')
+      return path
+    }
+
+    if (options.systemPrompt) {
+      args.push('--system-prompt-file', writeTempPrompt(options.systemPrompt, 'system.md'))
+    }
+    if (options.appendSystemPrompt) {
+      args.push('--append-system-prompt-file', writeTempPrompt(options.appendSystemPrompt, 'append.md'))
+    }
     if (options.bare) args.push('--bare')
     for (const dir of options.addDirs ?? []) args.push('--add-dir', dir)
     if (options.sessionId) args.push('--resume', options.sessionId)
@@ -148,7 +164,7 @@ export class ClaudeRunner extends EventEmitter {
 
     if (!session?.process.stdin?.writable) {
       this.logger.error('Cannot send: session not writable', { sessionId })
-      return
+      throw new Error(`Session not writable: ${sessionId}`)
     }
 
     session.process.stdin.write(

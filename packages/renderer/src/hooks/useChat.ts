@@ -59,10 +59,6 @@ declare global {
         saveAll: (conversations: unknown[]) => Promise<void>
         loadAll: (flowDirs: string[]) => Promise<PersistedConversation[]>
       }
-      convstore: {
-        saveAll: (conversations: unknown[]) => Promise<void>
-        loadAll: (flowDirs: string[]) => Promise<PersistedConversation[]>
-      }
       events: {
         onChatStream: (cb: (payload: { sessionId: string; content: string }) => void) => void
         onChatThinking: (cb: (payload: { sessionId: string; content: string }) => void) => void
@@ -129,18 +125,22 @@ export function useChat() {
           },
         }
         if (profile.systemPrompt) options.systemPrompt = profile.systemPrompt
+        if (conv.flowSystemPrompt) options.systemPrompt = conv.flowSystemPrompt
         if (conv.flowDir) {
           options.cwd = conv.flowDir
           options.addDirs = [conv.flowDir]
+          options.bare = true
           if (conv.flowTools && conv.flowTools.length > 0) {
             options.allowedTools = conv.flowTools
           }
           options.settingsFile = `${conv.flowDir}/settings.json`
         }
+        options.firstMessage = content
         sessionId = await window.electronAPI.conversation.create(options)
         store.setSessionId(targetId, sessionId)
+      } else {
+        await window.electronAPI.conversation.send(sessionId, content)
       }
-      await window.electronAPI.conversation.send(sessionId, content)
     } catch {
       store.setStreaming(targetId, false)
     }

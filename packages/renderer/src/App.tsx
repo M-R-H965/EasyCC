@@ -2,6 +2,7 @@ import React, { useEffect, useRef } from 'react'
 import { useAppStore } from './stores/appStore'
 import { useChatStore } from './stores/chatStore'
 import { useProfileStore } from './stores/profileStore'
+import { useProfileStore } from './stores/profileStore'
 import { Sidebar } from './components/Sidebar'
 import { ChatView } from './components/ChatView'
 import { InputBar } from './components/InputBar'
@@ -42,6 +43,18 @@ export default function App() {
   const store = useChatStore()
   const saveTimer = useRef<ReturnType<typeof setTimeout> | null>(null)
   const loaded = useRef(false)
+
+  useEffect(() => {
+    // Load profiles on startup so currentProfile is available before any panel is opened
+    window.electronAPI?.profile?.list().then((list) => {
+      if (!list?.length) return
+      const { setProfiles, setCurrentProfile, currentProfile } = useProfileStore.getState()
+      setProfiles(list)
+      if (!currentProfile) {
+        setCurrentProfile(list.find((p) => p.isDefault) ?? list[0])
+      }
+    })
+  }, [])
 
   useEffect(() => {
     const api = window.electronAPI

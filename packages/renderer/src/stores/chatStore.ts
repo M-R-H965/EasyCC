@@ -8,6 +8,7 @@ export interface Conversation {
   flowName: string | null
   flowDir: string | null
   flowTools: string[]
+  flowSystemPrompt: string | null
   profileId: string
   profileSnapshot: Profile
   sessionId: string | null
@@ -57,6 +58,7 @@ export const useChatStore = create<ChatState>((set, get) => ({
       flowName: flow?.name ?? null,
       flowDir: flow?.dir ?? null,
       flowTools: flow?.tools ?? [],
+      flowSystemPrompt: flow?.body ?? null,
       profileId: profile.id,
       profileSnapshot: profile,
       sessionId: null,
@@ -166,6 +168,7 @@ export const useChatStore = create<ChatState>((set, get) => ({
       conversations[c.id] = {
         ...c,
         flowTools: (c as any).flowTools ?? [],
+        flowSystemPrompt: (c as any).flowSystemPrompt ?? null,
         isStreaming: false,
         // profileSnapshot is not persisted — reconstruct a minimal stub so the
         // type is satisfied; the real profile is only needed when sending a new

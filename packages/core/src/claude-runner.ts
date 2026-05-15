@@ -13,6 +13,7 @@ interface Session {
   initTimer: ReturnType<typeof setTimeout> | null
   resolveInit?: (id: string) => void
   rejectInit?: (err: Error) => void
+  options: RunnerOptions
 }
 
 const CLAUDE_CMD = process.platform === 'win32' ? 'claude.cmd' : 'claude'
@@ -20,6 +21,8 @@ const CLAUDE_CMD = process.platform === 'win32' ? 'claude.cmd' : 'claude'
 export class ClaudeRunner extends EventEmitter {
   private sessions = new Map<string, Session>()
   private tombstones = new Map<string, number>()
+  // Stores options for exited sessions so they can be respawned with --resume
+  private exitedOptions = new Map<string, RunnerOptions>()
   private bus: EventBus<CoreEventMap>
   private logger
 
@@ -38,26 +41,20 @@ export class ClaudeRunner extends EventEmitter {
       '--model', options.model,
     ]
 
-    if (options.systemPrompt) {
-      args.push('--system-prompt', options.systemPrompt)
-    }
-    for (const dir of options.addDirs ?? []) {
-      args.push('--add-dir', dir)
-    }
-    if (options.sessionId) {
-      args.push('--resume', options.sessionId)
-    }
+    if (options.systemPrompt) args.push('--system-prompt', options.systemPrompt)
+    if (options.bare) args.push('--bare')
+    for (const dir of options.addDirs ?? []) args.push('--add-dir', dir)
+    if (options.sessionId) args.push('--resume', options.sessionId)
     if (options.allowedTools && options.allowedTools.length > 0) {
-      args.push('--allowed-tools', options.allowedTools.join(','))
+      const tools = options.allowedTools.map((t) => t.charAt(0).toUpperCase() + t.slice(1))
+      args.push('--allowed-tools', tools.join(','))
     }
     if (options.settingsFile && existsSync(options.settingsFile)) {
       args.push('--settings', options.settingsFile)
     }
 
     const env: Record<string, string> = { ...process.env as Record<string, string> }
-    if (options.env) {
-      Object.assign(env, options.env)
-    }
+    if (options.env) Object.assign(env, options.env)
 
     const proc = spawn(CLAUDE_CMD, args, {
       cwd: options.cwd ?? process.cwd(),
@@ -67,53 +64,48 @@ export class ClaudeRunner extends EventEmitter {
     })
 
     this.logger.info('CLI spawned', {
-      cmd: CLAUDE_CMD,
-      args,
+      cmd: CLAUDE_CMD, args,
       cwd: options.cwd ?? process.cwd(),
       envKeys: Object.keys(options.env ?? {}),
       hasApiKey: !!(env.ANTHROPIC_API_KEY),
     })
 
     const session: Session = {
-      process: proc,
-      sessionId: '',
-      initialized: false,
-      initTimer: null,
+      process: proc, sessionId: '', initialized: false, initTimer: null, options,
     }
 
-    // Parse stdout line by line (stream-json)
+    // CLI needs stdin input before it emits system/init in --print mode
+    if (options.firstMessage) {
+      proc.stdin!.write(
+        JSON.stringify({ type: 'user', message: { role: 'user', content: options.firstMessage } }) + '\n'
+      )
+    }
+
     const rl = createInterface({ input: proc.stdout! })
     rl.on('line', (line) => {
       if (!line.trim()) return
-      try {
-        const event = JSON.parse(line)
-        this.handleEvent(session, event)
-      } catch {
-        this.logger.warn('Failed to parse CLI output', { line: line.slice(0, 200) })
-      }
+      try { this.handleEvent(session, JSON.parse(line)) }
+      catch { this.logger.warn('Failed to parse CLI output', { line: line.slice(0, 200) }) }
     })
 
     proc.stderr!.on('data', (data: Buffer) => {
       this.logger.warn('CLI stderr', { data: data.toString().slice(0, 500) })
     })
 
-    // Log all stdout lines before they're parsed, to diagnose startup failures
     proc.stdout!.on('data', (data: Buffer) => {
       this.logger.debug('CLI stdout raw', { data: data.toString().slice(0, 500) })
     })
 
     proc.on('exit', (code) => {
-      if (session.initTimer) {
-        clearTimeout(session.initTimer)
-        session.initTimer = null
-      }
+      if (session.initTimer) { clearTimeout(session.initTimer); session.initTimer = null }
       if (session.sessionId) {
         this.tombstones.set(session.sessionId, code ?? 0)
+        // Save options so send() can respawn with --resume
+        this.exitedOptions.set(session.sessionId, session.options)
         this.sessions.delete(session.sessionId)
         this.bus.emit('session:exit', { sessionId: session.sessionId, code })
         this.logger.info('CLI process exited', { sessionId: session.sessionId, code })
       } else {
-        // Process exited before init — give readline one tick to drain, then reject
         setImmediate(() => {
           if (!session.sessionId) {
             session.rejectInit?.(new Error(`CLI exited before init with code ${code}`))
@@ -122,7 +114,6 @@ export class ClaudeRunner extends EventEmitter {
       }
     })
 
-    // Wait for init event with timeout
     return new Promise((resolve, reject) => {
       const timeout = setTimeout(() => {
         if (session.sessionId) {
@@ -139,14 +130,19 @@ export class ClaudeRunner extends EventEmitter {
     })
   }
 
-  send(sessionId: string, message: string): void {
+  async send(sessionId: string, message: string): Promise<void> {
     const session = this.sessions.get(sessionId)
 
-    // Try respawn from tombstone
+    // --print mode: process exits after each turn, respawn with --resume
     if (!session && this.tombstones.has(sessionId)) {
-      this.logger.info('Attempting respawn', { sessionId })
+      const opts = this.exitedOptions.get(sessionId)
       this.tombstones.delete(sessionId)
-      // Caller should start a new session with --resume
+      this.exitedOptions.delete(sessionId)
+      if (opts) {
+        await this.start({ ...opts, sessionId, firstMessage: message })
+      } else {
+        this.logger.error('Cannot respawn: no saved options', { sessionId })
+      }
       return
     }
 
@@ -155,18 +151,14 @@ export class ClaudeRunner extends EventEmitter {
       return
     }
 
-    const payload = JSON.stringify({
-      type: 'user',
-      message: { role: 'user', content: message },
-    }) + '\n'
-
-    session.process.stdin.write(payload)
+    session.process.stdin.write(
+      JSON.stringify({ type: 'user', message: { role: 'user', content: message } }) + '\n'
+    )
   }
 
   stop(sessionId: string): void {
     const session = this.sessions.get(sessionId)
     if (!session) return
-
     try {
       if (process.platform === 'win32') {
         spawn('taskkill', ['/pid', String(session.process.pid), '/T', '/F'])
@@ -179,9 +171,7 @@ export class ClaudeRunner extends EventEmitter {
   }
 
   stopAll(): void {
-    for (const sessionId of this.sessions.keys()) {
-      this.stop(sessionId)
-    }
+    for (const sessionId of this.sessions.keys()) this.stop(sessionId)
   }
 
   isRunning(sessionId: string): boolean {
@@ -196,10 +186,7 @@ export class ClaudeRunner extends EventEmitter {
       session.sessionId = event.session_id as string
       session.initialized = true
       this.sessions.set(session.sessionId, session)
-      if (session.initTimer) {
-        clearTimeout(session.initTimer)
-        session.initTimer = null
-      }
+      if (session.initTimer) { clearTimeout(session.initTimer); session.initTimer = null }
       session.resolveInit?.(session.sessionId)
       this.bus.emit('session:init', { sessionId: session.sessionId })
       this.logger.info('CLI initialized', { sessionId: session.sessionId })

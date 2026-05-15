@@ -13,7 +13,7 @@ export function useProfile() {
     }
   }, [])
 
-  const createProfile = useCallback(async (data: Record<string, string>) => {
+  const createProfile = useCallback(async (data: Record<string, unknown>) => {
     const profile = await window.electronAPI.profile.create(data)
     await loadProfiles()
     return profile

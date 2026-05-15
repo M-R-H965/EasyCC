@@ -11,7 +11,7 @@ export function ProfilePanel() {
 
   const handleCreate = async () => {
     if (!form.name || !form.apiKey) return
-    await createProfile(form)
+    await createProfile({ ...form, isDefault: false })
     setForm({ name: '', apiUrl: 'https://api.anthropic.com', apiKey: '', model: 'claude-sonnet-4-6' })
     setShowCreate(false)
   }

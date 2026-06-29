@@ -12,7 +12,7 @@ AI workflow desktop framework powered by Claude Code CLI. Fork this repo and bui
 
 ```bash
 git clone https://github.com/M-R-H965/EasyCC.git
-cd easycc
+cd EasyCC
 npm install
 npm run build
 npm start
